@@ -3,7 +3,7 @@ name: 🚀 Deploy to GitHub Pages
 on:
   push:
     branches:
-      - main
+      - main  # 或者 master，如果你主分支是 master
 
 permissions:
   contents: read
@@ -23,7 +23,7 @@ jobs:
       - name: 🛠️ Upload artifact
         uses: actions/upload-pages-artifact@v1
         with:
-          path: .  # 当前目录为部署源
+          path: .  # 部署当前目录的所有内容
 
       - name: 🚀 Deploy to GitHub Pages
         uses: actions/deploy-pages@v2
