@@ -413,13 +413,13 @@ async function checkMatch() {
 
 <script>
   window.addEventListener("DOMContentLoaded", () => {
-    fetch('version.json')
+    const basePath = window.location.pathname.replace(/\/[^\/]*$/, '/') || '/';
+    fetch(`${basePath}version.json`)
       .then(res => res.json())
       .then(data => {
         if (data.version && document.getElementById("version")) {
           document.getElementById("version").innerText = data.version;
         }
-
         if (data.deployedAt && document.getElementById("deploy-time")) {
           const deployTime = new Date(data.deployedAt).toLocaleString("zh-CN", {
             hour12: false,
@@ -429,10 +429,11 @@ async function checkMatch() {
         }
       })
       .catch(() => {
-        document.getElementById("deploy-time").innerText = "（部署时间加载失败）";
+        document.getElementById("deploy-time").innerText = "（加载失败）";
       });
   });
 </script>
+
 
 </body>
 </html>
