@@ -84,6 +84,7 @@
 </div>
 
 
+
 <script>
 
 const MAX_ADDR = 5;
@@ -396,6 +397,17 @@ async function checkMatch() {
 
 
 </script>
+<script>
+  // 🌐 显示部署时间（使用构建时浏览器时间，适合前端项目）
+  const deployTime = new Date().toLocaleString("zh-CN", {
+    hour12: false,
+    timeZone: "Asia/Shanghai"
+  });
+  document.getElementById("deploy-time").innerText = deployTime;
+</script>
 
+<div id="deploy-info" style="margin-top:30px; text-align:center; font-size:13px; color:#888;">
+  🌐 页面部署时间：<span id="deploy-time">加载中...</span>
+</div>
 </body>
 </html>
