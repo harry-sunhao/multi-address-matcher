@@ -189,6 +189,14 @@ window.addEventListener("DOMContentLoaded", async () => {
   } catch (err) {
     alert("高德地图 SDK 加载失败，请检查 JS Key 是否正确。");
   }
+  const deployTime = new Date().toLocaleString("zh-CN", {
+      hour12: false,
+      timeZone: "Asia/Shanghai"
+    });
+    const el = document.getElementById("deploy-time");
+    if (el) {
+      el.innerText = deployTime;
+    }
 });
 
 
@@ -397,17 +405,23 @@ async function checkMatch() {
 
 
 </script>
-<script>
-  // 🌐 显示部署时间（使用构建时浏览器时间，适合前端项目）
-  const deployTime = new Date().toLocaleString("zh-CN", {
-    hour12: false,
-    timeZone: "Asia/Shanghai"
-  });
-  document.getElementById("deploy-time").innerText = deployTime;
-</script>
+
 
 <div id="deploy-info" style="margin-top:30px; text-align:center; font-size:13px; color:#888;">
-  🌐 页面部署时间：<span id="deploy-time">加载中...</span>
+  🚀 当前版本：<span id="version">v1.0.0</span> ｜ 🌐 页面部署时间：<span id="deploy-time">加载中...</span>
 </div>
+
+<script>
+  window.addEventListener("DOMContentLoaded", () => {
+    const deployTime = new Date().toLocaleString("zh-CN", {
+      hour12: false,
+      timeZone: "Asia/Shanghai"
+    });
+    const el = document.getElementById("deploy-time");
+    if (el) {
+      el.innerText = deployTime;
+    }
+  });
+</script>
 </body>
 </html>
