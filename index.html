@@ -413,15 +413,26 @@ async function checkMatch() {
 
 <script>
   window.addEventListener("DOMContentLoaded", () => {
-    const deployTime = new Date().toLocaleString("zh-CN", {
-      hour12: false,
-      timeZone: "Asia/Shanghai"
-    });
-    const el = document.getElementById("deploy-time");
-    if (el) {
-      el.innerText = deployTime;
-    }
+    fetch('version.json')
+      .then(res => res.json())
+      .then(data => {
+        if (data.version && document.getElementById("version")) {
+          document.getElementById("version").innerText = data.version;
+        }
+
+        if (data.deployedAt && document.getElementById("deploy-time")) {
+          const deployTime = new Date(data.deployedAt).toLocaleString("zh-CN", {
+            hour12: false,
+            timeZone: "Asia/Shanghai"
+          });
+          document.getElementById("deploy-time").innerText = deployTime;
+        }
+      })
+      .catch(() => {
+        document.getElementById("deploy-time").innerText = "（部署时间加载失败）";
+      });
   });
 </script>
+
 </body>
 </html>
