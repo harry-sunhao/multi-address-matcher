@@ -3,7 +3,7 @@ name: 🚀 Deploy to GitHub Pages
 on:
   push:
     branches:
-      - main  # 或者 master，如果你主分支是 master
+      - main
 
 permissions:
   contents: read
@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04  # ✅ 固定版本，避免平台 bug
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v3
@@ -23,7 +23,7 @@ jobs:
       - name: 🛠️ Upload artifact
         uses: actions/upload-pages-artifact@v1
         with:
-          path: .  # 部署当前目录的所有内容
+          path: .
 
       - name: 🚀 Deploy to GitHub Pages
         uses: actions/deploy-pages@v2
