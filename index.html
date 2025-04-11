@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>📍 多地址城市匹配系统</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; max-width: 1200px; margin: auto; }
+    #map { width: 100%; height: 500px; margin-top: 20px; }
+    .address-block { margin-bottom: 10px; }
+    #results, #logs { margin-top: 20px; white-space: pre-wrap; background: #f9f9f9; padding: 15px; border-radius: 8px; }
+	@media screen and (max-width: 600px) {
+  input[type="text"], input[type="number"] {
+    width: 100% !important;
+    box-sizing: border-box;
+    margin-bottom: 8px;
+  }
+  .address-block {
+    display: block;
+  }
+  button {
+    margin-top: 10px;
+    display: block;
+    width: 100%;
+  }
+}
+
+  </style>
+</head>
+<body>
+
+<h2>📍 多地址城市匹配系统</h2>
+
+<!-- API 选择与输入区 -->
+<div style="border:1px solid #ccc;padding:10px;border-radius:8px;margin-bottom:20px;">
+  <label><input type="checkbox" class="api-check" value="amap" checked> 使用高德地图</label>
+  <label><input type="checkbox" class="api-check" value="osm" checked> 使用OpenStreetMap</label>
+  <label><input type="checkbox" class="api-check" value="tencent" checked> 使用腾讯位置服务</label>
+  <label><input type="checkbox" class="api-check" value="geoapify" checked> 使用Geoapify</label><br>
+
+  <label>高德 JS Key：<input type="text" id="amapJsKeyInput" placeholder="jsKey" value=""></label>
+  <label>高德 Web Key：<input type="text" id="amapWebKeyInput" placeholder="webKey" value=""></label><br>
+  <label>腾讯地图 Key：<input type="text" id="tencentKeyInput" placeholder="腾讯 Key"></label>
+  <label>Geoapify Key：<input type="text" id="geoapifyKeyInput" placeholder="Geoapify Key"></label><br>
+  <button onclick="clearSavedKeys()">🧹 清除已保存的 Key</button>
+</div>
+
+<!-- 地址输入 -->
+<div id="addresses">
+  <div class="address-block">地址 1：<input type="text" class="addr-input" size="40"></div>
+  <div class="address-block">地址 2：<input type="text" class="addr-input" size="40"></div>
+</div>
+
+<button onclick="addAddress()">➕ 添加地址（最多5个）</button><br><br>
+阈值半径（米）：<input type="number" id="threshold" value="500">
+<button id="matchBtn" onclick="checkMatch()" disabled>开始匹配</button>
+
+<h3>🧪 匹配过程日志</h3>
+<div id="logs"></div>
+
+<h3>✅ 匹配成功结果</h3>
+<div id="results"></div>
+
+<div id="map"></div>
+
+<div style="margin-top: 30px; font-size: 14px; color: #333;">
+  <h4>📘 使用说明：</h4>
+  <ul>
+    <li>在上方勾选你要使用的地图服务。</li>
+    <li>如果服务需要 API Key，请到下方的申请地址申请并粘贴。</li>
+    <li>你输入的 Key 和勾选会自动保存在本地浏览器，下次自动加载。</li>
+    <li>推荐至少使用 2 个地图服务以获得更稳妥的匹配。</li>
+  </ul>
+</div>
+
+<!-- API 申请入口 -->
+<div style="margin-top: 30px; font-size: 14px; color: #666;">
+  <h4>🌐 各地图服务 API 申请地址：</h4>
+  <ul>
+    <li>🔑 高德地图：<a href="https://lbs.amap.com/dev/" target="_blank">https://lbs.amap.com/dev/</a></li>
+    <li>🔑 腾讯位置服务：<a href="https://lbs.qq.com/dev" target="_blank">https://lbs.qq.com/dev</a></li>
+    <li>🔑 Geoapify：<a href="https://www.geoapify.com/get-started-with-maps-api" target="_blank">https://www.geoapify.com</a></li>
+    <li>🔑 OpenStreetMap (Nominatim)：<a href="https://nominatim.org/release-docs/latest/api/Search/" target="_blank">https://nominatim.org</a>（无需注册）</li>
+  </ul>
+</div>
+
+
+<script>
+
+const MAX_ADDR = 5;
+const addressCache = new Map();
+let map = null;
+
+function loadAmapSDK(jsKey) {
+  return new Promise((resolve, reject) => {
+    if (window.AMap) {
+      resolve();  // 已加载
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = `https://webapi.amap.com/maps?v=2.0&key=${jsKey}&plugin=AMap.Geocoder,AMap.Circle,AMap.Marker,AMap.GeometryUtil`;
+    script.onload = resolve;
+    script.onerror = () => reject(new Error("高德地图 SDK 加载失败"));
+    document.head.appendChild(script);
+  });
+}
+
+
+function addAddress() {
+  const addrContainer = document.getElementById("addresses");
+  const count = document.querySelectorAll(".addr-input").length;
+  if (count >= MAX_ADDR) {
+    alert("最多只能添加5个地址！");
+    return;
+  }
+  const div = document.createElement("div");
+  div.className = "address-block";
+  div.innerHTML = `地址 ${count + 1}：<input type="text" class="addr-input" size="40">`;
+  addrContainer.appendChild(div);
+}
+
+function getEnabledAPIs() {
+  const checks = document.querySelectorAll(".api-check");
+  return Array.from(checks).filter(c => c.checked).map(c => c.value);
+}
+
+function saveKeysToLocal() {
+  localStorage.setItem("amapJsKey", document.getElementById("amapJsKeyInput").value.trim());
+  localStorage.setItem("amapWebKey", document.getElementById("amapWebKeyInput").value.trim());
+  localStorage.setItem("tencentKey", document.getElementById("tencentKeyInput").value.trim());
+  localStorage.setItem("geoapifyKey", document.getElementById("geoapifyKeyInput").value.trim());
+}
+function saveCheckedAPIsToLocal() {
+  const checks = document.querySelectorAll(".api-check");
+  const selected = Array.from(checks).filter(c => c.checked).map(c => c.value);
+  localStorage.setItem("enabledAPIs", JSON.stringify(selected));
+}
+
+function loadCheckedAPIsFromLocal() {
+  const saved = localStorage.getItem("enabledAPIs");
+  if (saved) {
+    const list = JSON.parse(saved);
+    document.querySelectorAll(".api-check").forEach(el => {
+      el.checked = list.includes(el.value);
+    });
+  }
+}
+
+function loadKeysFromLocal() {
+  ["amapJsKey", "amapWebKey", "tencentKey", "geoapifyKey"].forEach(key => {
+    const val = localStorage.getItem(key);
+    if (val) document.getElementById(key + "Input").value = val;
+  });
+}
+
+function clearSavedKeys() {
+  ["amapJsKey", "amapWebKey", "tencentKey", "geoapifyKey"].forEach(key => localStorage.removeItem(key));
+  alert("已清除本地保存的 Key，请刷新页面后查看效果。");
+}
+
+function bindKeyAutoSave() {
+  ["amapJsKeyInput", "amapWebKeyInput", "tencentKeyInput", "geoapifyKeyInput"].forEach(id => {
+    document.getElementById(id).addEventListener("input", saveKeysToLocal);
+  });
+}
+
+
+
+window.addEventListener("DOMContentLoaded", async () => {
+  loadKeysFromLocal();
+  loadCheckedAPIsFromLocal();
+  bindKeyAutoSave();
+  bindCheckSave();
+
+  const jsKey = document.getElementById("amapJsKeyInput").value.trim();
+  if (!jsKey) {
+    alert("请填写高德 JS Key 后刷新");
+    return;
+  }
+
+  try {
+    await loadAmapSDK(jsKey);
+    map = new AMap.Map("map", {
+      zoom: 10,
+      center: [116.397428, 39.90923]
+    });
+
+    document.getElementById("matchBtn").disabled = false;
+  } catch (err) {
+    alert("高德地图 SDK 加载失败，请检查 JS Key 是否正确。");
+  }
+});
+
+
+function normalizeCityName(obj) {
+  return (obj.city || obj.town || obj.county || obj.state || obj.province || obj.village || "未知")
+    .replace("市", "").trim();
+}
+
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function wgs84_to_gcj02(lng, lat) {
+  if (out_of_china(lng, lat)) return [lng, lat];
+  let dlat = transformlat(lng - 105.0, lat - 35.0);
+  let dlng = transformlng(lng - 105.0, lat - 35.0);
+  let radlat = lat / 180.0 * Math.PI;
+  let magic = Math.sin(radlat);
+  magic = 1 - 0.00669342162296594323 * magic * magic;
+  let sqrtmagic = Math.sqrt(magic);
+  dlat = (dlat * 180.0) / ((6335552.717000426 / (magic * sqrtmagic)) * Math.PI);
+  dlng = (dlng * 180.0) / ((6378245.0 / sqrtmagic) * Math.cos(radlat) * Math.PI);
+  return [lng + dlng, lat + dlat];
+}
+
+function out_of_china(lng, lat) {
+  return (lng < 72.004 || lng > 137.8347 || lat < 0.8293 || lat > 55.8271);
+}
+
+function transformlat(lng, lat) {
+  let ret = -100.0 + 2.0 * lng + 3.0 * lat + 0.2 * lat * lat +
+    0.1 * lng * lat + 0.2 * Math.sqrt(Math.abs(lng));
+  ret += (20.0 * Math.sin(6.0 * lng * Math.PI) + 20.0 * Math.sin(2.0 * lng * Math.PI)) * 2.0 / 3.0;
+  ret += (20.0 * Math.sin(lat * Math.PI) + 40.0 * Math.sin(lat / 3.0 * Math.PI)) * 2.0 / 3.0;
+  ret += (160.0 * Math.sin(lat / 12.0 * Math.PI) + 320 * Math.sin(lat * Math.PI / 30.0)) * 2.0 / 3.0;
+  return ret;
+}
+
+function transformlng(lng, lat) {
+  let ret = 300.0 + lng + 2.0 * lat + 0.1 * lng * lng +
+    0.1 * lng * lat + 0.1 * Math.sqrt(Math.abs(lng));
+  ret += (20.0 * Math.sin(6.0 * lng * Math.PI) + 20.0 * Math.sin(2.0 * lng * Math.PI)) * 2.0 / 3.0;
+  ret += (20.0 * Math.sin(lng * Math.PI) + 40.0 * Math.sin(lng / 3.0 * Math.PI)) * 2.0 / 3.0;
+  ret += (150.0 * Math.sin(lng / 12.0 * Math.PI) + 300.0 * Math.sin(lng / 30.0 * Math.PI)) * 2.0 / 3.0;
+  return ret;
+}
+function bindCheckSave() {
+  document.querySelectorAll(".api-check").forEach(el => {
+    el.addEventListener("change", saveCheckedAPIsToLocal);
+  });
+}
+
+async function fetchAllCandidates(address) {
+  const enabledAPIs = getEnabledAPIs();
+  const amapWebKey = document.getElementById("amapWebKeyInput").value.trim();
+  const tencentKey = document.getElementById("tencentKeyInput").value.trim();
+  const geoapifyKey = document.getElementById("geoapifyKeyInput").value.trim();
+  const results = [];
+
+  if (enabledAPIs.includes("amap") && amapWebKey) {
+    const url = `https://restapi.amap.com/v3/assistant/inputtips?key=${amapWebKey}&keywords=${encodeURIComponent(address)}&datatype=all`;
+    const data = await fetch(url).then(res => res.json()).catch(() => null);
+    if (data?.tips) {
+      results.push(...data.tips.filter(t => t.location && t.district).map(t => ({
+        name: t.name,
+        city: t.district,
+        location: t.location.split(',').map(Number),
+        source: "amap"
+      })));
+    }
+  }
+
+  if (enabledAPIs.includes("osm")) {
+    await delay(1000);
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&addressdetails=1&limit=1`;
+    const res = await fetch(url, { headers: { 'User-Agent': 'MapMatchClient' } }).then(r => r.json()).catch(() => null);
+    if (res?.[0]) {
+      results.push({
+        name: res[0].display_name,
+        city: normalizeCityName(res[0].address),
+        location: wgs84_to_gcj02(parseFloat(res[0].lon), parseFloat(res[0].lat)),
+        source: "osm"
+      });
+    }
+  }
+
+  if (enabledAPIs.includes("tencent") && tencentKey) {
+    const url = `https://apis.map.qq.com/ws/geocoder/v1/?address=${encodeURIComponent(address)}&key=${tencentKey}`;
+    const data = await fetch(url).then(r => r.json()).catch(() => null);
+    if (data?.status === 0) {
+      results.push({
+        name: address,
+        city: data.result.address_components.city,
+        location: [data.result.location.lng, data.result.location.lat],
+        source: "tencent"
+      });
+    }
+  }
+
+  if (enabledAPIs.includes("geoapify") && geoapifyKey) {
+    const url = `https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(address)}&format=json&apiKey=${geoapifyKey}`;
+    const data = await fetch(url).then(r => r.json()).catch(() => null);
+    if (data?.results?.[0]) {
+      results.push({
+        name: data.results[0].formatted,
+        city: normalizeCityName(data.results[0]),
+        location: wgs84_to_gcj02(data.results[0].lon, data.results[0].lat),
+        source: "geoapify"
+      });
+    }
+  }
+
+  return results;
+}
+
+async function checkMatch() {
+ if (!map || typeof map.clearMap !== 'function') {
+    alert("⚠️ 地图尚未初始化完成，请稍候再试！");
+    return;
+  }
+  const inputs = Array.from(document.querySelectorAll(".addr-input"));
+  const threshold = parseFloat(document.getElementById("threshold").value);
+  const logsDiv = document.getElementById("logs");
+  const resultsDiv = document.getElementById("results");
+  logsDiv.innerHTML = "🔍 正在搜索并尝试匹配...\n";
+  resultsDiv.innerHTML = "";
+  map.clearMap();
+
+  const allInputs = inputs.map(i => i.value.trim());
+  if (allInputs.some(val => !val)) {
+    logsDiv.innerHTML += "❌ 存在空地址，请补全。\n";
+    return;
+  }
+
+  const allCandidates = await Promise.all(allInputs.map(addr => fetchAllCandidates(addr)));
+  const cityMatchMap = new Map();
+
+  for (let i = 0; i < allCandidates.length; i++) {
+    for (let cand of allCandidates[i]) {
+      const city = cand.city.replace("市", "").trim();
+      if (!cityMatchMap.has(city)) {
+        cityMatchMap.set(city, Array(allInputs.length).fill(null));
+      }
+      const arr = cityMatchMap.get(city);
+      if (!arr[i]) arr[i] = cand;
+    }
+  }
+
+  const matchedCities = [];
+
+  for (let [city, points] of cityMatchMap.entries()) {
+    logsDiv.innerHTML += `\n🗺️ 尝试匹配城市：${city}\n`;
+    if (points.includes(null)) {
+      const missing = points.map((p, i) => p ? null : allInputs[i]).filter(Boolean);
+      logsDiv.innerHTML += `❌ 匹配失败：以下地址未在该城市找到候选点 → ${missing.join("，")}\n`;
+      continue;
+    }
+
+    logsDiv.innerHTML += `📍 匹配点：\n`;
+    points.forEach((p, i) => logsDiv.innerHTML += `  - ${allInputs[i]}：${p.name}（${p.location.join(",")}） [${p.source}]\n`);
+
+    let valid = true;
+    logsDiv.innerHTML += `📏 距离矩阵：\n`;
+    for (let i = 0; i < points.length; i++) {
+      for (let j = i + 1; j < points.length; j++) {
+        const dist = AMap.GeometryUtil.distance(points[i].location, points[j].location);
+        logsDiv.innerHTML += `  - ${allInputs[i]} ↔ ${allInputs[j]}：${dist.toFixed(2)} 米\n`;
+        if (dist > threshold * 2) valid = false;
+      }
+    }
+
+    if (valid) {
+      logsDiv.innerHTML += `✅ 匹配成功：该城市满足距离条件，加入候选列表。\n`;
+      matchedCities.push({ city, points });
+    } else {
+      logsDiv.innerHTML += `❌ 匹配失败：距离超限。\n`;
+    }
+  }
+
+  if (matchedCities.length === 0) {
+    resultsDiv.innerHTML = "❌ 没有找到任何满足条件的城市。";
+    return;
+  }
+
+  const match = matchedCities[0];
+  resultsDiv.innerHTML = `<h4>🏁 匹配成功城市：${match.city}</h4><ul>`;
+  const markers = [];
+
+  for (let i = 0; i < match.points.length; i++) {
+    const p = match.points[i];
+    resultsDiv.innerHTML += `<li>${allInputs[i]}：${p.name}（${p.location.join(",")}） [${p.source}]</li>`;
+    const marker = new AMap.Marker({ position: p.location, title: p.name, map });
+    const circle = new AMap.Circle({
+      center: p.location,
+      radius: threshold,
+      fillColor: '#cceeff',
+      strokeColor: '#3399ff',
+      fillOpacity: 0.3,
+      map
+    });
+    markers.push(marker, circle);
+  }
+  resultsDiv.innerHTML += "</ul>";
+  map.setFitView(markers);
+}
+
+
+</script>
+
+</body>
+</html>
