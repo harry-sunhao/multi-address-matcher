@@ -189,14 +189,6 @@ window.addEventListener("DOMContentLoaded", async () => {
   } catch (err) {
     alert("高德地图 SDK 加载失败，请检查 JS Key 是否正确。");
   }
-  const deployTime = new Date().toLocaleString("zh-CN", {
-      hour12: false,
-      timeZone: "Asia/Shanghai"
-    });
-    const el = document.getElementById("deploy-time");
-    if (el) {
-      el.innerText = deployTime;
-    }
 });
 
 
