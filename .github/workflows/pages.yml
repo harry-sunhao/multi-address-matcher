@@ -22,9 +22,14 @@ jobs:
             BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
             VERSION="r$COUNT-g$HASH"
             echo "{ \"version\": \"$VERSION\", \"deployedAt\": \"$BUILD_TIME\" }" > version.json
+      
+      - name: 添加 CNAME 文件（自定义域名）
+        run: echo "map.thinkly.it.com" > CNAME
+
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: .  # 部署根目录（即当前 index.html 所在位置）
           publish_branch: gh-pages
+          cname: map.thinkly.it.com
